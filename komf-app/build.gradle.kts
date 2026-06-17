@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.snd-r"
-version = "1.0.0-SNAPSHOT"
+version = "1.0.0"
 
 kotlin {
     jvmToolchain(17)
@@ -54,6 +54,8 @@ dependencies {
     implementation(libs.okhttp.sse)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.kaml)
+
+    testImplementation(kotlin("test"))
 }
 
 tasks {

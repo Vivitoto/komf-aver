@@ -34,6 +34,10 @@ import snd.komf.providers.comicvine.ComicVineClient
 import snd.komf.providers.comicvine.ComicVineMetadataMapper
 import snd.komf.providers.comicvine.ComicVineMetadataProvider
 import snd.komf.providers.comicvine.ComicVineRateLimiter
+import snd.komf.providers.ehentai.EHentaiClient
+import snd.komf.providers.ehentai.EHentaiMetadataMapper
+import snd.komf.providers.ehentai.EHentaiMetadataProvider
+import snd.komf.providers.ehentai.effectiveCookies
 import snd.komf.providers.hentag.HentagClient
 import snd.komf.providers.hentag.HentagMetadataMapper
 import snd.komf.providers.hentag.HentagMetadataProvider
@@ -62,6 +66,9 @@ import snd.komf.providers.mangaupdates.MangaUpdatesMetadataProvider
 import snd.komf.providers.nautiljon.NautiljonClient
 import snd.komf.providers.nautiljon.NautiljonMetadataProvider
 import snd.komf.providers.nautiljon.NautiljonSeriesMetadataMapper
+import snd.komf.providers.nhentai.NHentaiClient
+import snd.komf.providers.nhentai.NHentaiMetadataMapper
+import snd.komf.providers.nhentai.NHentaiMetadataProvider
 import snd.komf.providers.viz.VizClient
 import snd.komf.providers.viz.VizMetadataMapper
 import snd.komf.providers.viz.VizMetadataProvider
@@ -260,6 +267,19 @@ class ProvidersModule(
         }
     )
 
+    private val nhentaiClient = NHentaiClient(
+        baseHttpClientJson.config {
+            install(HttpRequestRateLimiter) {
+                interval = 2.seconds
+                eventsPerInterval = 1
+                allowBurst = false
+            }
+            install(HttpRequestRetry) {
+                defaultRetry()
+            }
+        }
+    )
+
     private val mangaBakaClient = MangaBakaApiClient(
         baseHttpClientJson.config {
             install(HttpRequestRateLimiter) {
@@ -411,6 +431,17 @@ class ProvidersModule(
                 defaultNameMatcher
             ),
             hentagPriority = config.hentag.priority,
+            nhentai = createNHentaiMetadataProvider(
+                config.nhentai,
+                nhentaiClient,
+                defaultNameMatcher
+            ),
+            nhentaiPriority = config.nhentai.priority,
+            ehentai = createEHentaiMetadataProvider(
+                config.ehentai,
+                defaultNameMatcher,
+            ),
+            ehentaiPriority = config.ehentai.priority,
             mangaBaka = createMangaBakaMetadataProvider(
                 config = config.mangaBaka,
                 datasource = when (config.mangaBaka.mode) {
@@ -761,6 +792,90 @@ class ProvidersModule(
         )
     }
 
+    private fun createNHentaiMetadataProvider(
+        config: ProviderConfig,
+        client: NHentaiClient,
+        defaultNameMatcher: NameSimilarityMatcher,
+    ): NHentaiMetadataProvider? {
+        if (config.enabled.not()) return null
+
+        logger.info {
+            "provider=NHENTAI enabled=true priority=${config.priority} " +
+                    "seriesCovers=${config.seriesMetadata.thumbnail} bookCovers=${config.bookMetadata.thumbnail}"
+        }
+
+        val metadataMapper = NHentaiMetadataMapper(
+            seriesMetadataConfig = config.seriesMetadata,
+            bookMetadataConfig = config.bookMetadata,
+            authorRoles = config.authorRoles,
+            artistRoles = config.artistRoles,
+        )
+        val similarityMatcher =
+            config.nameMatchingMode?.let { nameSimilarityMatcher(it) } ?: defaultNameMatcher
+
+        return NHentaiMetadataProvider(
+            client = client,
+            metadataMapper = metadataMapper,
+            nameMatcher = similarityMatcher,
+            fetchSeriesCovers = config.seriesMetadata.thumbnail,
+            fetchBookCovers = config.bookMetadata.thumbnail,
+        )
+    }
+
+    private fun createEHentaiMetadataProvider(
+        config: EHentaiConfig,
+        defaultNameMatcher: NameSimilarityMatcher,
+    ): EHentaiMetadataProvider? {
+        if (config.enabled.not()) return null
+
+        val effectiveCookies = config.effectiveCookies()
+        logger.info {
+            "provider=EHENTAI enabled=true priority=${config.priority} useExhentai=${config.useExhentai} " +
+                    "cookiesConfigured=${effectiveCookies.isNotEmpty()} userAgentConfigured=${!config.userAgent.isNullOrBlank()} " +
+                    "seriesCovers=${config.seriesMetadata.thumbnail} bookCovers=${config.bookMetadata.thumbnail}"
+        }
+        if (config.useExhentai && effectiveCookies.isEmpty()) {
+            logger.warn {
+                "provider=EHENTAI useExhentai=true cookiesConfigured=false " +
+                        "hint=ExHentai usually requires EHentai cookies in application.yml"
+            }
+        }
+
+        val client = EHentaiClient(
+            ktor = baseHttpClientJson.config {
+                install(HttpRequestRateLimiter) {
+                    interval = 3.seconds
+                    eventsPerInterval = 1
+                    allowBurst = false
+                }
+                install(HttpRequestRetry) {
+                    defaultRetry()
+                }
+            },
+            useExhentai = config.useExhentai,
+            cookies = config.cookies,
+            cookieHeader = config.cookieHeader,
+            userAgent = config.userAgent,
+        )
+        val metadataMapper = EHentaiMetadataMapper(
+            seriesMetadataConfig = config.seriesMetadata,
+            bookMetadataConfig = config.bookMetadata,
+            authorRoles = config.authorRoles,
+            artistRoles = config.artistRoles,
+            webBaseUrl = client.webBaseUrl,
+        )
+        val similarityMatcher =
+            config.nameMatchingMode?.let { nameSimilarityMatcher(it) } ?: defaultNameMatcher
+
+        return EHentaiMetadataProvider(
+            client = client,
+            metadataMapper = metadataMapper,
+            nameMatcher = similarityMatcher,
+            fetchSeriesCovers = config.seriesMetadata.thumbnail,
+            fetchBookCovers = config.bookMetadata.thumbnail,
+        )
+    }
+
 
     private fun createMangaBakaMetadataProvider(
         config: MangaBakaConfig,
@@ -860,6 +975,12 @@ class ProvidersModule(
         private val hentag: HentagMetadataProvider?,
         private val hentagPriority: Int,
 
+        private val nhentai: NHentaiMetadataProvider?,
+        private val nhentaiPriority: Int,
+
+        private val ehentai: EHentaiMetadataProvider?,
+        private val ehentaiPriority: Int,
+
         private val mangaBaka: MangaBakaMetadataProvider?,
         private val mangaBakaPriority: Int,
 
@@ -880,6 +1001,8 @@ class ProvidersModule(
             bangumi?.let { it to bangumiPriority },
             comicVine?.let { it to comicVinePriority },
             hentag?.let { it to hentagPriority },
+            nhentai?.let { it to nhentaiPriority },
+            ehentai?.let { it to ehentaiPriority },
             mangaBaka?.let { it to mangaBakaPriority },
             webtoons?.let { it to webtoonsPriority }
         )
@@ -900,9 +1023,11 @@ class ProvidersModule(
                 CoreProviders.MANGADEX -> mangaDex
                 CoreProviders.BANGUMI -> bangumi
                 CoreProviders.COMIC_VINE -> comicVine
+                CoreProviders.EHENTAI -> ehentai
                 CoreProviders.HENTAG -> hentag
                 CoreProviders.MANGA_BAKA -> mangaBaka
                 CoreProviders.WEBTOONS -> webtoons
+                CoreProviders.NHENTAI -> nhentai
             }
         }
     }

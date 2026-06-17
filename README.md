@@ -1,5 +1,5 @@
 # Komga and Kavita Metadata Fetcher
-Download latest version from https://github.com/Snd-R/komf/releases
+Download latest version from https://github.com/Vivitoto/komf-aver/releases
 
 ## Overview
 Komga and Kavita Metadata Fetcher is a tool that fetches metadata and thumbnails for your digital comic book library.\
@@ -40,7 +40,7 @@ To run the application using Docker Compose, use the following YAML configuratio
 version: "3.7"
 services:
   komf:
-    image: sndxr/komf:latest
+    image: vivitoto/komf-aver:latest # or replace with your built/published image
     container_name: komf
     ports:
       - "8085:8085"
@@ -52,12 +52,28 @@ services:
       - KOMF_KAVITA_BASE_URI=http://kavita:5000
       - KOMF_KAVITA_API_KEY=16707507-d05d-4696-b126-c3976ae14ffb
       - KOMF_LOG_LEVEL=INFO
+      # Optional outbound proxy for metadata provider requests. Prefer KOMF_PROXY_* because it is scoped to this app.
+      # - KOMF_PROXY_ENABLED=true
+      # - KOMF_PROXY_URL=http://host.docker.internal:7890
+      # - KOMF_PROXY_USERNAME=
+      # - KOMF_PROXY_PASSWORD=
+      # - KOMF_PROXY_NON_PROXY_HOSTS=localhost,127.0.0.1,komga,kavita
+      # Standard proxy env vars are also supported as fallbacks when KOMF_PROXY_* is not set.
+      # - HTTPS_PROXY=http://host.docker.internal:7890
+      # - HTTP_PROXY=http://host.docker.internal:7890
+      # - ALL_PROXY=socks5://host.docker.internal:7890
+      # - NO_PROXY=localhost,127.0.0.1,komga,kavita
       # optional jvm options. Example config for low memory usage. Runs guaranteed cleanup up every 3600000ms(1hour)
       - JAVA_TOOL_OPTIONS=-XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC -XX:ShenandoahGCHeuristics=compact -XX:ShenandoahGuaranteedGCInterval=3600000 -XX:TrimNativeHeapInterval=3600000
     volumes:
       - /path/to/config:/config #path to directory with application.yml and database file
+    # On Linux, uncomment this when KOMF_PROXY_URL uses host.docker.internal.
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
     restart: unless-stopped
 ```
+
+Use `host.docker.internal` for a proxy running on the host with Docker Desktop. On Linux, add the `extra_hosts` mapping shown above or use a host/IP address reachable from the container. Proxy settings can help providers such as Bangumi, nHentai, and EHentai when direct access is unreliable. Keep local media server hostnames or LAN IPs in `KOMF_PROXY_NON_PROXY_HOSTS` or `NO_PROXY`; the variable is `HTTP_PROXY`, not `HTTP_PORXY`.
 
 ### Running with Docker Create
 
@@ -74,8 +90,10 @@ docker create \
   -e KOMF_LOG_LEVEL=INFO \
   -v /path/to/config:/config \
   --restart unless-stopped \
-  sndxr/komf:latest
+  vivitoto/komf-aver:latest
 ```
+
+Replace `vivitoto/komf-aver:latest` with your local or published image name if you build a custom image.
 
 - if you don't already have a komga or kavita network you'll need to network create a new one
     - `docker network create my_network`
@@ -154,6 +172,13 @@ kavita:
           - "ja-ro"
         orderBooks: false # will order books using parsed volume or chapter number. works only with COMIC_INFO
         languageValue: # set default language for series. Must use BCP 47 format e.g. "en"
+
+proxy:
+  enabled: false # or env:KOMF_PROXY_ENABLED; standard proxy env vars auto-enable when KOMF_PROXY_ENABLED is unset
+  url: # e.g. http://host.docker.internal:7890; or env:KOMF_PROXY_URL / HTTPS_PROXY / HTTP_PROXY / ALL_PROXY
+  username: # or env:KOMF_PROXY_USERNAME
+  password: # or env:KOMF_PROXY_PASSWORD
+  nonProxyHosts: [localhost, 127.0.0.1, komga, kavita] # or env:KOMF_PROXY_NON_PROXY_HOSTS / NO_PROXY comma separated
 
 notifications:
   templatesDirectory: "./" # path to a directory with templates
@@ -235,12 +260,69 @@ metadataProviders:
       # Datasource used for metadata retrieval. DATABASE mode will only work if MangaBaka database is installed
       # API or DATABASE 
       mode: API
+    nhentai:
+      priority: 150
+      enabled: false
+    ehentai:
+      priority: 160
+      enabled: false
+      useExhentai: false # when true, ExHentai access usually requires cookies
+      userAgent: # optional custom user agent
+      cookieHeader: # recommended for ExHentai: copy the browser Cookie header
+      cookies: # advanced: explicit cookies override cookieHeader values with the same name
+        ipb_member_id:
+        ipb_pass_hash:
+        igneous:
 
 server:
   port: 8085 # or env:KOMF_SERVER_PORT
 
 logLevel: INFO # or env:KOMF_LOG_LEVEL
 ```
+
+### E-Hentai / ExHentai cookies
+
+Configure E-Hentai / ExHentai in `application.yml` under `metadataProviders.defaultProviders.ehentai`.
+For ExHentai, set `useExhentai: true` and provide the browser cookies from an account that can open ExHentai.
+Do not put these cookie values in public compose files or logs.
+
+Recommended: copy the browser `Cookie` request header as one string:
+
+```yaml
+metadataProviders:
+  defaultProviders:
+    ehentai:
+      enabled: true
+      useExhentai: true
+      userAgent: "Mozilla/5.0 ..." # optional, can match the browser used to obtain cookies
+      cookieHeader: "ipb_member_id=YOUR_IPB_MEMBER_ID; ipb_pass_hash=YOUR_IPB_PASS_HASH; igneous=YOUR_IGNEOUS"
+```
+
+Advanced: configure individual cookie values as a map:
+
+```yaml
+metadataProviders:
+  defaultProviders:
+    ehentai:
+      enabled: true
+      useExhentai: true
+      cookies:
+        ipb_member_id: "YOUR_IPB_MEMBER_ID"
+        ipb_pass_hash: "YOUR_IPB_PASS_HASH"
+        igneous: "YOUR_IGNEOUS"
+```
+
+If both `cookieHeader` and `cookies` are configured, entries in `cookies` take precedence over values parsed from
+`cookieHeader` with the same cookie name.
+
+`docker-compose.yml` can mount or persist this `application.yml`, but there are no dedicated environment variables for
+these cookie values. Prefer the YAML file for these secrets. KOMF masks cookie values and `cookieHeader` when the config
+API returns them and keeps existing values if the UI/API sends the masked `********` placeholder back.
+
+When `logLevel: INFO`, KOMF logs whether the EHentai provider is enabled, whether `useExhentai` is enabled, and whether
+cookies/userAgent are configured, but it never prints cookie names or values. Request failures are logged with
+`provider=EHENTAI` or `provider=NHENTAI`, `action=...`, HTTP status, host, and a short hint for likely Cloudflare,
+rate-limit, region, auth, or provider-side issues.
 
 ## Metadata update config for a library
 

@@ -41,6 +41,8 @@ data class ProvidersConfig(
     val bangumi: ProviderConfig = ProviderConfig(),
     val comicVine: ProviderConfig = ProviderConfig(),
     val hentag: ProviderConfig = ProviderConfig(),
+    val nhentai: ProviderConfig = ProviderConfig(),
+    val ehentai: EHentaiConfig = EHentaiConfig(),
     val mangaBaka: MangaBakaConfig = MangaBakaConfig(),
     val webtoons: ProviderConfig = ProviderConfig(),
 )
@@ -56,6 +58,24 @@ data class ProviderConfig(
 
     val authorRoles: Collection<AuthorRole> = listOf(WRITER),
     val artistRoles: Collection<AuthorRole> = listOf(PENCILLER, INKER, COLORIST, LETTERER, COVER),
+)
+
+@Serializable
+data class EHentaiConfig(
+    val priority: Int = 10,
+    val enabled: Boolean = false,
+    val seriesMetadata: SeriesMetadataConfig = SeriesMetadataConfig(),
+    val bookMetadata: BookMetadataConfig = BookMetadataConfig(),
+    val nameMatchingMode: NameMatchingMode? = null,
+    val mediaType: MediaType = MANGA,
+
+    val authorRoles: Collection<AuthorRole> = listOf(WRITER),
+    val artistRoles: Collection<AuthorRole> = listOf(PENCILLER, INKER, COLORIST, LETTERER, COVER),
+
+    val useExhentai: Boolean = false,
+    val cookieHeader: String? = null,
+    val cookies: Map<String, String> = emptyMap(),
+    val userAgent: String? = null,
 )
 
 @Serializable

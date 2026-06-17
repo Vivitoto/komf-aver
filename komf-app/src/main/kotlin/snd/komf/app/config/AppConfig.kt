@@ -16,9 +16,19 @@ data class AppConfig(
     val database: DatabaseConfig = DatabaseConfig(),
     val metadataProviders: MetadataProvidersConfig = MetadataProvidersConfig(),
     val notifications: NotificationsConfig = NotificationsConfig(),
+    val proxy: ProxyConfig = ProxyConfig(),
     val server: ServerConfig = ServerConfig(),
     val logLevel: String = "INFO",
     val httpLogLevel: HttpLoggingInterceptor.Level = BASIC
+)
+
+@Serializable
+data class ProxyConfig(
+    val enabled: Boolean = false,
+    val url: String? = null,
+    val username: String? = null,
+    val password: String? = null,
+    val nonProxyHosts: List<String> = listOf("localhost", "127.0.0.1", "komga", "kavita")
 )
 
 @Serializable

@@ -118,6 +118,8 @@ data class ProvidersConfigDto(
     val bangumi: ProviderConfigDto,
     val comicVine: ProviderConfigDto,
     val hentag: ProviderConfigDto,
+    val nhentai: ProviderConfigDto = defaultDisabledProviderConfigDto(),
+    val ehentai: EHentaiConfigDto = defaultDisabledEHentaiConfigDto(),
     val mangaBaka: MangaBakaConfigDto,
     val webtoons: ProviderConfigDto,
 )
@@ -145,6 +147,24 @@ data class ProviderConfigDto(
 
     override val authorRoles: Collection<KomfAuthorRole>,
     override val artistRoles: Collection<KomfAuthorRole>,
+) : ProviderConf
+
+@Serializable
+data class EHentaiConfigDto(
+    override val priority: Int,
+    override val enabled: Boolean,
+    override val seriesMetadata: SeriesMetadataConfigDto,
+    override val bookMetadata: BookMetadataConfigDto,
+    override val nameMatchingMode: KomfNameMatchingMode?,
+    override val mediaType: KomfMediaType,
+
+    override val authorRoles: Collection<KomfAuthorRole>,
+    override val artistRoles: Collection<KomfAuthorRole>,
+
+    val useExhentai: Boolean,
+    val cookieHeader: String?,
+    val cookies: Map<String, String>,
+    val userAgent: String?,
 ) : ProviderConf
 
 @Serializable
@@ -193,6 +213,76 @@ data class MangaBakaConfigDto(
     val mode: MangaBakaMode,
 ) : ProviderConf {
     override val bookMetadata: BookMetadataConfigDto? = null
+}
+
+internal fun defaultDisabledProviderConfigDto(): ProviderConfigDto {
+    return ProviderConfigDto(
+        priority = 0,
+        enabled = false,
+        seriesMetadata = defaultSeriesMetadataConfigDto(),
+        bookMetadata = defaultBookMetadataConfigDto(),
+        nameMatchingMode = null,
+        mediaType = KomfMediaType.MANGA,
+        authorRoles = emptyList(),
+        artistRoles = emptyList(),
+    )
+}
+
+internal fun defaultDisabledEHentaiConfigDto(): EHentaiConfigDto {
+    val providerConfig = defaultDisabledProviderConfigDto()
+    return EHentaiConfigDto(
+        priority = providerConfig.priority,
+        enabled = providerConfig.enabled,
+        seriesMetadata = providerConfig.seriesMetadata,
+        bookMetadata = providerConfig.bookMetadata,
+        nameMatchingMode = providerConfig.nameMatchingMode,
+        mediaType = providerConfig.mediaType,
+        authorRoles = providerConfig.authorRoles,
+        artistRoles = providerConfig.artistRoles,
+        useExhentai = false,
+        cookieHeader = null,
+        cookies = emptyMap(),
+        userAgent = null,
+    )
+}
+
+internal fun defaultSeriesMetadataConfigDto(): SeriesMetadataConfigDto {
+    return SeriesMetadataConfigDto(
+        status = false,
+        title = false,
+        summary = false,
+        publisher = false,
+        readingDirection = false,
+        ageRating = false,
+        language = false,
+        genres = false,
+        tags = false,
+        totalBookCount = false,
+        authors = false,
+        releaseDate = false,
+        thumbnail = false,
+        links = false,
+        books = false,
+        useOriginalPublisher = false,
+        originalPublisherTagName = null,
+        englishPublisherTagName = null,
+        frenchPublisherTagName = null,
+    )
+}
+
+internal fun defaultBookMetadataConfigDto(): BookMetadataConfigDto {
+    return BookMetadataConfigDto(
+        title = false,
+        summary = false,
+        number = false,
+        numberSort = false,
+        releaseDate = false,
+        authors = false,
+        tags = false,
+        isbn = false,
+        links = false,
+        thumbnail = false,
+    )
 }
 
 @Serializable

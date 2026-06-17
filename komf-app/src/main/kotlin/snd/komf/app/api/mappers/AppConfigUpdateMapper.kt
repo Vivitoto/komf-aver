@@ -6,6 +6,7 @@ import snd.komf.api.config.AniListConfigUpdateRequest
 import snd.komf.api.config.AppriseConfigUpdateRequest
 import snd.komf.api.config.BookMetadataConfigUpdateRequest
 import snd.komf.api.config.DiscordConfigUpdateRequest
+import snd.komf.api.config.EHentaiConfigUpdateRequest
 import snd.komf.api.config.EventListenerConfigUpdateRequest
 import snd.komf.api.config.KavitaConfigUpdateRequest
 import snd.komf.api.config.KomfConfigUpdateRequest
@@ -31,6 +32,7 @@ import snd.komf.notifications.apprise.AppriseConfig
 import snd.komf.notifications.discord.DiscordConfig
 import snd.komf.providers.AniListConfig
 import snd.komf.providers.BookMetadataConfig
+import snd.komf.providers.EHentaiConfig
 import snd.komf.providers.MangaBakaConfig
 import snd.komf.providers.MangaDexConfig
 import snd.komf.providers.MetadataProvidersConfig
@@ -41,6 +43,9 @@ import snd.komf.providers.mangadex.model.MangaDexLink
 import snd.komf.util.NameSimilarityMatcher.NameMatchingMode
 
 class AppConfigUpdateMapper {
+    private companion object {
+        const val MASKED_PLACEHOLDER = "********"
+    }
 
     fun patch(config: AppConfig, patch: KomfConfigUpdateRequest): AppConfig {
         return config.copy(
@@ -153,6 +158,10 @@ class AppConfigUpdateMapper {
                 ?.let { providerConfig(config.comicVine, it) } ?: config.comicVine,
             hentag = patch.hentag.getOrNull()
                 ?.let { providerConfig(config.hentag, it) } ?: config.hentag,
+            nhentai = patch.nhentai.getOrNull()
+                ?.let { providerConfig(config.nhentai, it) } ?: config.nhentai,
+            ehentai = patch.ehentai.getOrNull()
+                ?.let { ehentaiProviderConfig(config.ehentai, it) } ?: config.ehentai,
             mangaBaka = patch.mangaBaka.getOrNull()
                 ?.let { mangaBakaProviderConfig(config.mangaBaka, it) } ?: config.mangaBaka,
             webtoons = patch.webtoons.getOrNull()
@@ -184,6 +193,57 @@ class AppConfigUpdateMapper {
                 PatchValue.Unset -> config.nameMatchingMode
             }
         )
+    }
+
+    private fun ehentaiProviderConfig(config: EHentaiConfig, patch: EHentaiConfigUpdateRequest): EHentaiConfig {
+        return config.copy(
+            priority = patch.priority.getOrNull() ?: config.priority,
+            enabled = patch.enabled.getOrNull() ?: config.enabled,
+            mediaType = patch.mediaType.getOrNull()?.toMediaType() ?: config.mediaType,
+            authorRoles = patch.authorRoles.getOrNull()?.map { it.toAuthorRole() } ?: config.authorRoles,
+            artistRoles = patch.artistRoles.getOrNull()?.map { it.toAuthorRole() } ?: config.artistRoles,
+            seriesMetadata = patch.seriesMetadata.getOrNull()
+                ?.let { seriesMetadataConfig(config.seriesMetadata, it) }
+                ?: config.seriesMetadata,
+            bookMetadata = patch.bookMetadata.getOrNull()
+                ?.let { bookMetadataConfig(config.bookMetadata, it) }
+                ?: config.bookMetadata,
+            nameMatchingMode = when (val mode = patch.nameMatchingMode) {
+                PatchValue.None -> null
+                is PatchValue.Some -> mode.value.toNameMatchingMode()
+                PatchValue.Unset -> config.nameMatchingMode
+            },
+            useExhentai = patch.useExhentai.getOrNull() ?: config.useExhentai,
+            cookieHeader = patchSecret(config.cookieHeader, patch.cookieHeader),
+            cookies = patchCookies(config.cookies, patch.cookies),
+            userAgent = when (val userAgent = patch.userAgent) {
+                PatchValue.None -> null
+                is PatchValue.Some -> userAgent.value
+                PatchValue.Unset -> config.userAgent
+            },
+        )
+    }
+
+    private fun patchSecret(config: String?, patch: PatchValue<String>): String? {
+        return when (patch) {
+            PatchValue.None -> null
+            is PatchValue.Some -> if (patch.value == MASKED_PLACEHOLDER) config else patch.value
+            PatchValue.Unset -> config
+        }
+    }
+
+    private fun patchCookies(
+        config: Map<String, String>,
+        patch: PatchValue<Map<String, String>>
+    ): Map<String, String> {
+        return when (patch) {
+            PatchValue.None -> emptyMap()
+            is PatchValue.Some -> patch.value.mapValues { (key, value) ->
+                if (value == MASKED_PLACEHOLDER && config.containsKey(key)) config.getValue(key)
+                else value
+            }
+            PatchValue.Unset -> config
+        }
     }
 
     private fun aniListProviderConfig(config: AniListConfig, patch: AniListConfigUpdateRequest): AniListConfig {

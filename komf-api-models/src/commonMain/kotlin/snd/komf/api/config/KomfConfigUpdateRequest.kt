@@ -109,6 +109,8 @@ data class ProvidersConfigUpdateRequest(
     val bangumi: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
     val comicVine: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
     val hentag: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
+    val nhentai: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
+    val ehentai: PatchValue<EHentaiConfigUpdateRequest> = PatchValue.Unset,
     val mangaBaka: PatchValue<MangaBakaConfigUpdateRequest> = PatchValue.Unset,
     val webtoons: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
 )
@@ -124,6 +126,24 @@ class ProviderConfigUpdateRequest(
 
     val authorRoles: PatchValue<Collection<KomfAuthorRole>> = PatchValue.Unset,
     val artistRoles: PatchValue<Collection<KomfAuthorRole>> = PatchValue.Unset,
+)
+
+@Serializable
+class EHentaiConfigUpdateRequest(
+    val priority: PatchValue<Int> = PatchValue.Unset,
+    val enabled: PatchValue<Boolean> = PatchValue.Unset,
+    val seriesMetadata: PatchValue<SeriesMetadataConfigUpdateRequest> = PatchValue.Unset,
+    val bookMetadata: PatchValue<BookMetadataConfigUpdateRequest> = PatchValue.Unset,
+    val nameMatchingMode: PatchValue<KomfNameMatchingMode> = PatchValue.Unset,
+    val mediaType: PatchValue<KomfMediaType> = PatchValue.Unset,
+
+    val authorRoles: PatchValue<Collection<KomfAuthorRole>> = PatchValue.Unset,
+    val artistRoles: PatchValue<Collection<KomfAuthorRole>> = PatchValue.Unset,
+
+    val useExhentai: PatchValue<Boolean> = PatchValue.Unset,
+    val cookieHeader: PatchValue<String> = PatchValue.Unset,
+    val cookies: PatchValue<Map<String, String>> = PatchValue.Unset,
+    val userAgent: PatchValue<String> = PatchValue.Unset,
 )
 
 @Serializable

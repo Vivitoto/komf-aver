@@ -6,6 +6,7 @@ import snd.komf.api.config.AniListConfigDto
 import snd.komf.api.config.AppriseConfigDto
 import snd.komf.api.config.BookMetadataConfigDto
 import snd.komf.api.config.DiscordConfigDto
+import snd.komf.api.config.EHentaiConfigDto
 import snd.komf.api.config.EventListenerConfigDto
 import snd.komf.api.config.KavitaConfigDto
 import snd.komf.api.config.KomfConfig
@@ -34,6 +35,7 @@ import snd.komf.notifications.apprise.AppriseConfig
 import snd.komf.notifications.discord.DiscordConfig
 import snd.komf.providers.AniListConfig
 import snd.komf.providers.BookMetadataConfig
+import snd.komf.providers.EHentaiConfig
 import snd.komf.providers.MangaBakaConfig
 import snd.komf.providers.MangaDexConfig
 import snd.komf.providers.MetadataProvidersConfig
@@ -174,6 +176,8 @@ class AppConfigMapper {
             bangumi = toDto(config.bangumi),
             comicVine = toDto(config.comicVine),
             hentag = toDto(config.hentag),
+            nhentai = toDto(config.nhentai),
+            ehentai = toDto(config.ehentai),
             mangaBaka = toDto(config.mangaBaka),
             webtoons = toDto(config.webtoons),
         )
@@ -190,6 +194,27 @@ class AppConfigMapper {
             seriesMetadata = toDto(config.seriesMetadata),
             bookMetadata = toDto(config.bookMetadata),
         )
+    }
+
+    private fun toDto(config: EHentaiConfig): EHentaiConfigDto {
+        return EHentaiConfigDto(
+            nameMatchingMode = config.nameMatchingMode?.fromNameMatchingMode(),
+            priority = config.priority,
+            enabled = config.enabled,
+            mediaType = config.mediaType.fromMediaType(),
+            authorRoles = config.authorRoles.map { it.fromAuthorRole() },
+            artistRoles = config.artistRoles.map { it.fromAuthorRole() },
+            seriesMetadata = toDto(config.seriesMetadata),
+            bookMetadata = toDto(config.bookMetadata),
+            useExhentai = config.useExhentai,
+            cookieHeader = maskSecret(config.cookieHeader),
+            cookies = config.cookies.mapValues { (_, value) -> if (value.isBlank()) "" else maskedPlaceholder },
+            userAgent = config.userAgent,
+        )
+    }
+
+    private fun maskSecret(value: String?): String? {
+        return value?.let { if (it.isBlank()) "" else maskedPlaceholder }
     }
 
     private fun toDto(config: AniListConfig): AniListConfigDto {
