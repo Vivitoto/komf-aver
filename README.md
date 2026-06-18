@@ -40,7 +40,7 @@ To run the application using Docker Compose, use the following YAML configuratio
 version: "3.7"
 services:
   komf:
-    image: vivitoto/komf-aver:1.0.1 # use vivitoto/komf-aver:latest after latest is updated
+    image: vivitoto/komf-aver:latest
     container_name: komf
     ports:
       - "8085:8085"
@@ -50,7 +50,7 @@ services:
       - KOMF_KOMGA_USER=admin@example.org
       - KOMF_KOMGA_PASSWORD=admin
       - KOMF_KAVITA_BASE_URI=http://kavita:5000
-      - KOMF_KAVITA_API_KEY=16707507-d05d-4696-b126-c3976ae14ffb
+      - KOMF_KAVITA_API_KEY=your-kavita-api-key
       - KOMF_LOG_LEVEL=INFO
       # Optional outbound proxy for metadata provider requests. Prefer KOMF_PROXY_* because it is scoped to this app.
       # - KOMF_PROXY_ENABLED=true
@@ -65,7 +65,7 @@ services:
       # - NO_PROXY=localhost,127.0.0.1,komga,kavita
       # Optional FlareSolverr fallback for Cloudflare-blocked metadata requests such as nHentai/EHentai.
       # - KOMF_FLARESOLVERR_ENABLED=true
-      # - KOMF_FLARESOLVERR_URL=http://flaresolverr:8191
+      # - KOMF_FLARESOLVERR_URL=http://flaresolverr:8191 # base URL only; KOMF appends /v1 automatically
       # - KOMF_FLARESOLVERR_TIMEOUT_SECONDS=60
       # - KOMF_FLARESOLVERR_MAX_TIMEOUT=120000
       # optional jvm options. Example config for low memory usage. Runs guaranteed cleanup up every 3600000ms(1hour)
@@ -87,7 +87,7 @@ services:
 
 Use `host.docker.internal` for a proxy running on the host with Docker Desktop. On Linux, add the `extra_hosts` mapping shown above or use a host/IP address reachable from the container. Proxy settings can help providers such as Bangumi, nHentai, and EHentai when direct access is unreliable. Keep local media server hostnames or LAN IPs in `KOMF_PROXY_NON_PROXY_HOSTS` or `NO_PROXY`; the variable is `HTTP_PROXY`, not `HTTP_PORXY`.
 
-For release deployments, pin `vivitoto/komf-aver:1.0.1`. Once this release is published as latest, `vivitoto/komf-aver:latest` should resolve to the same release image. FlareSolverr must run on the same Docker network as KOMF when `KOMF_FLARESOLVERR_URL=http://flaresolverr:8191` is used.
+For stable deployments, pin a specific release tag such as `vivitoto/komf-aver:1.0.1`. `vivitoto/komf-aver:latest` points to the latest release image. FlareSolverr must run on the same Docker network as KOMF when `KOMF_FLARESOLVERR_URL=http://flaresolverr:8191` is used. Configure the FlareSolverr base URL only; KOMF appends `/v1` automatically.
 
 ### Running with Docker Create
 
@@ -100,14 +100,14 @@ docker create \
   -e KOMF_KOMGA_USER=admin@example.org \
   -e KOMF_KOMGA_PASSWORD=admin \
   -e KOMF_KAVITA_BASE_URI=http://kavita:5000 \
-  -e KOMF_KAVITA_API_KEY=16707507-d05d-4696-b126-c3976ae14ffb \
+  -e KOMF_KAVITA_API_KEY=your-kavita-api-key \
   -e KOMF_LOG_LEVEL=INFO \
   -v /path/to/config:/config \
   --restart unless-stopped \
-  vivitoto/komf-aver:1.0.1
+  vivitoto/komf-aver:latest
 ```
 
-Use `vivitoto/komf-aver:1.0.1` for this release, or `vivitoto/komf-aver:latest` after latest is updated. Replace it with your local or published image name if you build a custom image.
+Use `vivitoto/komf-aver:latest` for the latest release, or pin a specific release tag such as `vivitoto/komf-aver:1.0.1`. Replace it with your local or published image name if you build a custom image.
 
 - if you don't already have a komga or kavita network you'll need to network create a new one
     - `docker network create my_network`
@@ -161,7 +161,7 @@ komga:
 
 kavita:
   baseUri: "http://localhost:5000" #or env:KOMF_KAVITA_BASE_URI
-  apiKey: "16707507-d05d-4696-b126-c3976ae14ffb" #or env:KOMF_KAVITA_API_KEY
+  apiKey: "your-kavita-api-key" #or env:KOMF_KAVITA_API_KEY
   eventListener:
     enabled: false # if disabled will not connect to kavita and won't pick up newly added entries
     metadataLibraryFilter: [ ]  # listen to all events if empty
@@ -196,7 +196,7 @@ proxy:
 
 flareSolverr:
   enabled: false # or env:KOMF_FLARESOLVERR_ENABLED
-  url: # e.g. http://flaresolverr:8191; or env:KOMF_FLARESOLVERR_URL
+  url: # e.g. http://flaresolverr:8191; or env:KOMF_FLARESOLVERR_URL; base URL only, KOMF appends /v1 automatically
   timeoutSeconds: 60 # or env:KOMF_FLARESOLVERR_TIMEOUT_SECONDS
   maxTimeout: # optional milliseconds override; or env:KOMF_FLARESOLVERR_MAX_TIMEOUT / KOMF_FLARESOLVERR_MAX_TIMEOUT_MS
   session: # optional FlareSolverr session name; or env:KOMF_FLARESOLVERR_SESSION
