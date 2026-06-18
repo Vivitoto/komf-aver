@@ -18,6 +18,8 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 import org.jetbrains.exposed.v1.jdbc.Database
+import snd.komf.flaresolverr.DisabledFlareSolverr
+import snd.komf.flaresolverr.FlareSolverr
 import snd.komf.ktor.HttpRequestRateLimiter
 import snd.komf.ktor.intervalLimiter
 import snd.komf.ktor.rateLimiter
@@ -88,6 +90,7 @@ class ProvidersModule(
     private val config: MetadataProvidersConfig,
     baseHttpClient: HttpClient,
     mangaBakaDatabase: Database?,
+    private val flareSolverr: FlareSolverr = DisabledFlareSolverr,
 ) {
 
     private val json = Json {
@@ -277,7 +280,9 @@ class ProvidersModule(
             install(HttpRequestRetry) {
                 defaultRetry()
             }
-        }
+        },
+        flareSolverr = flareSolverr,
+        json = json,
     )
 
     private val mangaBakaClient = MangaBakaApiClient(
@@ -856,6 +861,7 @@ class ProvidersModule(
             cookies = config.cookies,
             cookieHeader = config.cookieHeader,
             userAgent = config.userAgent,
+            flareSolverr = flareSolverr,
         )
         val metadataMapper = EHentaiMetadataMapper(
             seriesMetadataConfig = config.seriesMetadata,

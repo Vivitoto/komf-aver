@@ -8,15 +8,19 @@ import io.ktor.client.plugins.ResponseException
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.Url
 import io.ktor.http.headersOf
 import io.ktor.http.content.TextContent
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import snd.komf.flaresolverr.FlareSolverr
+import snd.komf.flaresolverr.FlareSolverrSolution
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
 
@@ -92,6 +96,38 @@ class EHentaiClientTest {
         assertTrue(cookieHeader.contains("igneous=from-header"))
         assertFalse(cookieHeader.contains("ipb_member_id=from-header"))
         assertFalse(cookieHeader.contains("ipb_pass_hash=from-header"))
+    }
+
+    @Test
+    fun searchFallsBackToFlareSolverrForCloudflareHtmlWithCookiesAndUserAgent() = runBlocking {
+        val flareSolverr = FakeFlareSolverr(searchHtml)
+        val ktor = HttpClient(MockEngine) {
+            engine {
+                addHandler {
+                    respond(
+                        content = ByteReadChannel(cloudflareHtml),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                    )
+                }
+            }
+        }
+
+        val results = EHentaiClient(
+            ktor = ktor,
+            useExhentai = true,
+            cookieHeader = "ipb_member_id=member; ipb_pass_hash=hash; igneous=igneous",
+            userAgent = "custom-agent",
+            flareSolverr = flareSolverr,
+        ).search("sample query", limit = 5)
+
+        assertEquals(1, results.size)
+        assertEquals("Visible Gallery Title", results.single().title)
+        assertEquals("sample query", Url(assertNotNull(flareSolverr.requestUrl)).parameters["f_search"])
+        assertEquals("custom-agent", flareSolverr.headers[HttpHeaders.UserAgent])
+        assertEquals("member", flareSolverr.cookies["ipb_member_id"])
+        assertEquals("hash", flareSolverr.cookies["ipb_pass_hash"])
+        assertEquals("igneous", flareSolverr.cookies["igneous"])
     }
 
     @Test
@@ -196,7 +232,43 @@ class EHentaiClientTest {
         assertEquals(HttpStatusCode.Forbidden, exception.response.status)
     }
 
+    private class FakeFlareSolverr(private val response: String) : FlareSolverr {
+        override val enabled: Boolean = true
+        var requestUrl: String? = null
+        var headers: Map<String, String> = emptyMap()
+        var cookies: Map<String, String> = emptyMap()
+
+        override suspend fun requestGet(
+            url: String,
+            headers: Map<String, String>,
+            cookies: Map<String, String>,
+        ): FlareSolverrSolution {
+            requestUrl = url
+            this.headers = headers
+            this.cookies = cookies
+            return FlareSolverrSolution(response = response)
+        }
+    }
+
     private companion object {
+        const val cloudflareHtml = """
+            <!doctype html>
+            <html>
+              <head><title>Just a moment...</title></head>
+              <body>Checking your browser before accessing exhentai.org. Cloudflare</body>
+            </html>
+        """
+
+        const val searchHtml = """
+            <html>
+              <body>
+                <a href="https://exhentai.org/g/123456/abcdef1234/">
+                  <div class="glink">Visible Gallery Title</div>
+                </a>
+              </body>
+            </html>
+        """
+
         val gdataResponseJson = """
             {
               "gmetadata": [

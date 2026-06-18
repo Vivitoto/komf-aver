@@ -2,6 +2,7 @@ package snd.komf.app.config
 
 import com.charleskorn.kaml.Yaml
 import io.github.oshai.kotlinlogging.KotlinLogging
+import snd.komf.flaresolverr.FlareSolverrConfig
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -80,6 +81,7 @@ class ConfigLoader(private val yaml: Yaml) {
             ?: metadataProvidersConfig.comicVineSearchLimit
         val bangumiToken = System.getenv("KOMF_METADATA_PROVIDERS_BANGUMI_TOKEN")?.ifBlank { null }
             ?: metadataProvidersConfig.bangumiToken
+        val flareSolverrConfig = resolveFlareSolverrConfig(config.flareSolverr)
 
         return config.copy(
             komga = komgaConfig.copy(
@@ -111,6 +113,7 @@ class ConfigLoader(private val yaml: Yaml) {
                 )
             ),
             server = serverConfig.copy(port = serverPort),
+            flareSolverr = flareSolverrConfig,
             logLevel = logLevel
         )
     }
@@ -181,6 +184,27 @@ class ConfigLoader(private val yaml: Yaml) {
             logger.warn { "No metadata providers enabled. You will not be able to get new metadata" }
         }
     }
+}
+
+internal fun resolveFlareSolverrConfig(
+    config: FlareSolverrConfig,
+    getenv: (String) -> String? = { System.getenv(it)?.ifBlank { null } },
+): FlareSolverrConfig {
+    val maxTimeout = getenv("KOMF_FLARESOLVERR_MAX_TIMEOUT")?.toLongOrNull()
+        ?: getenv("KOMF_FLARESOLVERR_MAX_TIMEOUT_MS")?.toLongOrNull()
+        ?: config.maxTimeout
+
+    return config.copy(
+        enabled = getenv("KOMF_FLARESOLVERR_ENABLED")
+            ?.lowercase()
+            ?.toBooleanStrictOrNull()
+            ?: config.enabled,
+        url = getenv("KOMF_FLARESOLVERR_URL") ?: config.url,
+        timeoutSeconds = getenv("KOMF_FLARESOLVERR_TIMEOUT_SECONDS")?.toLongOrNull()
+            ?: config.timeoutSeconds,
+        maxTimeout = maxTimeout,
+        session = getenv("KOMF_FLARESOLVERR_SESSION") ?: config.session,
+    )
 }
 
 internal data class ProxyUrlCredentials(

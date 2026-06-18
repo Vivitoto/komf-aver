@@ -13,10 +13,10 @@ RUN pipx install --include-deps pipx \
     && /root/.local/bin/pipx install --global --include-deps apprise
 
 WORKDIR /app
-COPY komf-app/build/libs/komf-app-1.0.0-all.jar ./
+COPY komf-app/build/libs/komf-app-1.0.1-all.jar ./
 ENV LC_ALL=en_US.UTF-8
 ENV KOMF_CONFIG_DIR="/config"
-ENTRYPOINT ["java","-jar", "komf-app-1.0.0-all.jar"]
+ENTRYPOINT ["java","-jar", "komf-app-1.0.1-all.jar"]
 EXPOSE 8085
 
 LABEL org.opencontainers.image.url=https://github.com/Vivitoto/komf-aver org.opencontainers.image.source=https://github.com/Vivitoto/komf-aver

@@ -14,6 +14,8 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import snd.komf.flaresolverr.FlareSolverr
+import snd.komf.flaresolverr.FlareSolverrSolution
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -61,6 +63,32 @@ class NHentaiClientTest {
     }
 
     @Test
+    fun searchFallsBackToFlareSolverrOnCloudflareStatus() = runBlocking {
+        val flareSolverr = FakeFlareSolverr(searchResponseJson)
+        val ktor = HttpClient(MockEngine) {
+            expectSuccess = true
+            engine {
+                addHandler {
+                    respond(
+                        content = ByteReadChannel(cloudflareHtml),
+                        status = HttpStatusCode.ServiceUnavailable,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                    )
+                }
+            }
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true })
+            }
+        }
+
+        val results = NHentaiClient(ktor, flareSolverr).search("sample query", limit = 5)
+
+        assertEquals(1, results.size)
+        assertEquals(123456L, results.single().id)
+        assertEquals("sample query", Url(assertNotNull(flareSolverr.requestUrl)).parameters["query"])
+    }
+
+    @Test
     fun httpFailureKeepsResponseExceptionForOperatorLogs() = runBlocking {
         val ktor = HttpClient(MockEngine) {
             expectSuccess = true
@@ -102,7 +130,29 @@ class NHentaiClientTest {
         }
     }
 
+    private class FakeFlareSolverr(private val response: String) : FlareSolverr {
+        override val enabled: Boolean = true
+        var requestUrl: String? = null
+
+        override suspend fun requestGet(
+            url: String,
+            headers: Map<String, String>,
+            cookies: Map<String, String>,
+        ): FlareSolverrSolution {
+            requestUrl = url
+            return FlareSolverrSolution(response = response)
+        }
+    }
+
     private companion object {
+        const val cloudflareHtml = """
+            <!doctype html>
+            <html>
+              <head><title>Just a moment...</title></head>
+              <body>Checking your browser before accessing nhentai.net. Cloudflare</body>
+            </html>
+        """
+
         val galleryResponseJson = """
             {
               "id": 123456,

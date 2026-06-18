@@ -111,6 +111,7 @@ class AppContext(private val configPath: Path? = null) {
 
         providersModule = CoreModule(
             config = config.metadataProviders,
+            flareSolverrConfig = config.flareSolverr,
             ktor = ktorBaseClient,
             onStateRefresh = this::refreshState,
         )
@@ -156,6 +157,7 @@ class AppContext(private val configPath: Path? = null) {
 
         val providersModule = CoreModule(
             config = config.metadataProviders,
+            flareSolverrConfig = config.flareSolverr,
             ktor = ktorBaseClient,
             onStateRefresh = this::refreshState,
         )

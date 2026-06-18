@@ -30,7 +30,7 @@ To run the application, you can either use the JAR file or Docker Compose.
 To run the application using the JAR file, follow these steps:
 
 1. Ensure you have Java 17 or higher installed on your system.
-2. Run `java -jar komf-1.0-SNAPSHOT-all.jar <path to config>`.
+2. Run `java -jar komf-app-1.0.1-all.jar <path to config>`.
 
 ### Running with Docker Compose
 
@@ -40,7 +40,7 @@ To run the application using Docker Compose, use the following YAML configuratio
 version: "3.7"
 services:
   komf:
-    image: vivitoto/komf-aver:latest # or replace with your built/published image
+    image: vivitoto/komf-aver:1.0.1 # use vivitoto/komf-aver:latest after latest is updated
     container_name: komf
     ports:
       - "8085:8085"
@@ -63,6 +63,11 @@ services:
       # - HTTP_PROXY=http://host.docker.internal:7890
       # - ALL_PROXY=socks5://host.docker.internal:7890
       # - NO_PROXY=localhost,127.0.0.1,komga,kavita
+      # Optional FlareSolverr fallback for Cloudflare-blocked metadata requests such as nHentai/EHentai.
+      # - KOMF_FLARESOLVERR_ENABLED=true
+      # - KOMF_FLARESOLVERR_URL=http://flaresolverr:8191
+      # - KOMF_FLARESOLVERR_TIMEOUT_SECONDS=60
+      # - KOMF_FLARESOLVERR_MAX_TIMEOUT=120000
       # optional jvm options. Example config for low memory usage. Runs guaranteed cleanup up every 3600000ms(1hour)
       - JAVA_TOOL_OPTIONS=-XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC -XX:ShenandoahGCHeuristics=compact -XX:ShenandoahGuaranteedGCInterval=3600000 -XX:TrimNativeHeapInterval=3600000
     volumes:
@@ -71,9 +76,18 @@ services:
     # extra_hosts:
     #   - "host.docker.internal:host-gateway"
     restart: unless-stopped
+  # Optional: add this service when enabling KOMF_FLARESOLVERR_* above.
+  # flaresolverr:
+  #   image: ghcr.io/flaresolverr/flaresolverr:latest
+  #   container_name: flaresolverr
+  #   environment:
+  #     - LOG_LEVEL=info
+  #   restart: unless-stopped
 ```
 
 Use `host.docker.internal` for a proxy running on the host with Docker Desktop. On Linux, add the `extra_hosts` mapping shown above or use a host/IP address reachable from the container. Proxy settings can help providers such as Bangumi, nHentai, and EHentai when direct access is unreliable. Keep local media server hostnames or LAN IPs in `KOMF_PROXY_NON_PROXY_HOSTS` or `NO_PROXY`; the variable is `HTTP_PROXY`, not `HTTP_PORXY`.
+
+For release deployments, pin `vivitoto/komf-aver:1.0.1`. Once this release is published as latest, `vivitoto/komf-aver:latest` should resolve to the same release image. FlareSolverr must run on the same Docker network as KOMF when `KOMF_FLARESOLVERR_URL=http://flaresolverr:8191` is used.
 
 ### Running with Docker Create
 
@@ -90,10 +104,10 @@ docker create \
   -e KOMF_LOG_LEVEL=INFO \
   -v /path/to/config:/config \
   --restart unless-stopped \
-  vivitoto/komf-aver:latest
+  vivitoto/komf-aver:1.0.1
 ```
 
-Replace `vivitoto/komf-aver:latest` with your local or published image name if you build a custom image.
+Use `vivitoto/komf-aver:1.0.1` for this release, or `vivitoto/komf-aver:latest` after latest is updated. Replace it with your local or published image name if you build a custom image.
 
 - if you don't already have a komga or kavita network you'll need to network create a new one
     - `docker network create my_network`
@@ -179,6 +193,13 @@ proxy:
   username: # or env:KOMF_PROXY_USERNAME
   password: # or env:KOMF_PROXY_PASSWORD
   nonProxyHosts: [localhost, 127.0.0.1, komga, kavita] # or env:KOMF_PROXY_NON_PROXY_HOSTS / NO_PROXY comma separated
+
+flareSolverr:
+  enabled: false # or env:KOMF_FLARESOLVERR_ENABLED
+  url: # e.g. http://flaresolverr:8191; or env:KOMF_FLARESOLVERR_URL
+  timeoutSeconds: 60 # or env:KOMF_FLARESOLVERR_TIMEOUT_SECONDS
+  maxTimeout: # optional milliseconds override; or env:KOMF_FLARESOLVERR_MAX_TIMEOUT / KOMF_FLARESOLVERR_MAX_TIMEOUT_MS
+  session: # optional FlareSolverr session name; or env:KOMF_FLARESOLVERR_SESSION
 
 notifications:
   templatesDirectory: "./" # path to a directory with templates
@@ -323,6 +344,11 @@ When `logLevel: INFO`, KOMF logs whether the EHentai provider is enabled, whethe
 cookies/userAgent are configured, but it never prints cookie names or values. Request failures are logged with
 `provider=EHENTAI` or `provider=NHENTAI`, `action=...`, HTTP status, host, and a short hint for likely Cloudflare,
 rate-limit, region, auth, or provider-side issues.
+
+Optional: configure a local FlareSolverr service under top-level `flareSolverr` or with `KOMF_FLARESOLVERR_*` env vars.
+KOMF keeps normal provider requests first, then uses FlareSolverr as a fallback for Cloudflare-blocked nHentai JSON
+requests and E-Hentai / ExHentai search HTML requests. ExHentai cookies and the configured User-Agent are forwarded to
+FlareSolverr for the fallback request.
 
 ## Metadata update config for a library
 

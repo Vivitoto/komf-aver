@@ -23,6 +23,10 @@ import kotlinx.serialization.json.addJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import snd.komf.flaresolverr.CloudflareChallengeDetector
+import snd.komf.flaresolverr.CloudflareChallengeException
+import snd.komf.flaresolverr.DisabledFlareSolverr
+import snd.komf.flaresolverr.FlareSolverr
 import snd.komf.model.Image
 
 private val logger = KotlinLogging.logger {}
@@ -33,6 +37,7 @@ class EHentaiClient(
     cookies: Map<String, String> = emptyMap(),
     cookieHeader: String? = null,
     private val userAgent: String? = null,
+    private val flareSolverr: FlareSolverr = DisabledFlareSolverr,
 ) {
     private val parser = EHentaiParser()
     private val effectiveCookies = effectiveEHentaiCookies(cookieHeader, cookies)
@@ -41,11 +46,11 @@ class EHentaiClient(
 
     suspend fun search(query: String, limit: Int): List<EHentaiSearchResult> {
         return withProviderLogging(action = "search", requestUrl = webBaseUrl) {
-            val html = ktor.get(webBaseUrl) {
+            val html = getHtmlWithCloudflareFallback(webBaseUrl, action = "search") {
                 configureMetadataRequest(webBaseUrl)
                 parameter("advsearch", "1")
                 parameter("f_search", query)
-            }.bodyAsText()
+            }
 
             parser.parseSearchResults(html, webBaseUrl).take(limit)
         }
@@ -96,6 +101,55 @@ class EHentaiClient(
         userAgent?.let { header(HttpHeaders.UserAgent, it) }
     }
 
+    private suspend fun getHtmlWithCloudflareFallback(
+        url: String,
+        action: String,
+        configure: HttpRequestBuilder.() -> Unit,
+    ): String {
+        var requestUrl = url
+        val body = try {
+            val response = ktor.get(url) {
+                configure()
+            }
+            requestUrl = response.call.request.url.toString()
+            response.bodyAsText()
+        } catch (exception: ResponseException) {
+            if (CloudflareChallengeDetector.isBlockedStatus(exception.response.status.value)) {
+                return requestViaFlareSolverr(exception.response.call.request.url.toString(), action) ?: throw exception
+            }
+            throw exception
+        }
+
+        return if (CloudflareChallengeDetector.isChallengeHtml(body)) {
+            requestViaFlareSolverr(requestUrl, action)
+                ?: throw CloudflareChallengeException(
+                    "E-Hentai response was blocked by Cloudflare and FlareSolverr is disabled"
+                )
+        } else {
+            body
+        }
+    }
+
+    private suspend fun requestViaFlareSolverr(url: String, action: String): String? {
+        val headers = userAgent
+            ?.ifBlank { null }
+            ?.let { mapOf(HttpHeaders.UserAgent to it) }
+            .orEmpty()
+        val solution = flareSolverr.requestGet(
+            url = url,
+            headers = headers,
+            cookies = effectiveCookies,
+        ) ?: return null
+        val response = requireNotNull(solution.response) {
+            "FlareSolverr returned no response body for E-Hentai $action"
+        }
+        if (CloudflareChallengeDetector.isChallengeHtml(response)) {
+            throw CloudflareChallengeException("FlareSolverr returned a Cloudflare challenge for E-Hentai $action")
+        }
+        logger.info { "provider=EHENTAI action=$action host=${Url(url).host} result=flaresolverr-fallback-success" }
+        return response
+    }
+
     private suspend fun <T> withProviderLogging(
         action: String,
         requestUrl: String,
@@ -117,6 +171,11 @@ class EHentaiClient(
         } catch (exception: SerializationException) {
             logger.warn {
                 "provider=EHENTAI action=$action host=$host result=failed hint=response-json-unexpected-auth-failure-or-block-page"
+            }
+            throw exception
+        } catch (exception: CloudflareChallengeException) {
+            logger.warn {
+                "provider=EHENTAI action=$action host=$host result=failed hint=cloudflare-challenge-flaresolverr-disabled-or-unsolved"
             }
             throw exception
         } catch (exception: CancellationException) {

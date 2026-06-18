@@ -3,6 +3,7 @@ package snd.komf.app.config
 import kotlinx.serialization.Serializable
 import okhttp3.logging.HttpLoggingInterceptor
 import okhttp3.logging.HttpLoggingInterceptor.Level.BASIC
+import snd.komf.flaresolverr.FlareSolverrConfig
 import snd.komf.mediaserver.config.DatabaseConfig
 import snd.komf.mediaserver.config.KavitaConfig
 import snd.komf.mediaserver.config.KomgaConfig
@@ -17,6 +18,7 @@ data class AppConfig(
     val metadataProviders: MetadataProvidersConfig = MetadataProvidersConfig(),
     val notifications: NotificationsConfig = NotificationsConfig(),
     val proxy: ProxyConfig = ProxyConfig(),
+    val flareSolverr: FlareSolverrConfig = FlareSolverrConfig(),
     val server: ServerConfig = ServerConfig(),
     val logLevel: String = "INFO",
     val httpLogLevel: HttpLoggingInterceptor.Level = BASIC
